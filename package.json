@@ -4,6 +4,9 @@
   "description": "",
   "main": "app.js",
   "dependencies": {
+    "express": "^4.13.3",
+    "express-graphql": "^0.3.0",
+    "express-session": "^1.11.3",
     "graphql": "^0.4.4",
     "underscore": "^1.8.3"
   },
