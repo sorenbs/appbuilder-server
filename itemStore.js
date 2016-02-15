@@ -1,6 +1,7 @@
 var graphql = require('graphql').graphql;
 var GraphQLSchema = require('graphql').GraphQLSchema;
 var GraphQLObjectType = require('graphql').GraphQLObjectType;
+var GraphQLInputObjectType = require('graphql').GraphQLInputObjectType;
 var GraphQLObject = require('graphql').GraphQLObject;
 var GraphQLString = require('graphql').GraphQLString;
 var GraphQLInt = require('graphql').GraphQLInt;
@@ -9,6 +10,7 @@ var GraphQLList = require('graphql').GraphQLList;
 var GraphQLID = require('graphql').GraphQLID;
 var GraphQLInterfaceType = require('graphql').GraphQLInterfaceType;
 var _ = require('underscore');
+var cuid = require('cuid');
 
 var items = [{
 		type: 'testApp1:Dansker',
@@ -28,7 +30,7 @@ var items = [{
 		farve: 'Hvid'
 	}]
 
-var rootSchema = [{"name":"RootQueryType","kind":"OBJECT","fields":[{"name":"Dansker","type":{"name":"Dansker","kind":"OBJECT","ofType":null}}]},{"name":"String","kind":"SCALAR","fields":null},{"name":"Dansker","kind":"OBJECT","fields":[ {"name":"id","type":{"name":"GraphQLID","kind":"SCALAR","ofType":null}}, {"name":"greeting","type":{"name":"String","kind":"SCALAR","ofType":null}},{"name":"age","type":{"name":"Int","kind":"SCALAR","ofType":null}},{"name":"biler","type":{"name":null,"kind":"LIST","ofType":{"name":"Bil","kind":"OBJECT"}}}]},{"name":"Int","kind":"SCALAR","fields":null},{"name":"Bil","kind":"OBJECT","fields":[ {"name":"id","type":{"name":"GraphQLID","kind":"SCALAR","ofType":null}}, {"name":"farve","type":{"name":"String","kind":"SCALAR","ofType":null}}]},{"name":"__Schema","kind":"OBJECT","fields":[{"name":"types","type":{"name":null,"kind":"NON_NULL","ofType":{"name":null,"kind":"LIST"}}},{"name":"queryType","type":{"name":null,"kind":"NON_NULL","ofType":{"name":"__Type","kind":"OBJECT"}}},{"name":"mutationType","type":{"name":"__Type","kind":"OBJECT","ofType":null}},{"name":"directives","type":{"name":null,"kind":"NON_NULL","ofType":{"name":null,"kind":"LIST"}}}]},{"name":"__Type","kind":"OBJECT","fields":[{"name":"kind","type":{"name":null,"kind":"NON_NULL","ofType":{"name":"__TypeKind","kind":"ENUM"}}},{"name":"name","type":{"name":"String","kind":"SCALAR","ofType":null}},{"name":"description","type":{"name":"String","kind":"SCALAR","ofType":null}},{"name":"fields","type":{"name":null,"kind":"LIST","ofType":{"name":null,"kind":"NON_NULL"}}},{"name":"interfaces","type":{"name":null,"kind":"LIST","ofType":{"name":null,"kind":"NON_NULL"}}},{"name":"possibleTypes","type":{"name":null,"kind":"LIST","ofType":{"name":null,"kind":"NON_NULL"}}},{"name":"enumValues","type":{"name":null,"kind":"LIST","ofType":{"name":null,"kind":"NON_NULL"}}},{"name":"inputFields","type":{"name":null,"kind":"LIST","ofType":{"name":null,"kind":"NON_NULL"}}},{"name":"ofType","type":{"name":"__Type","kind":"OBJECT","ofType":null}}]},{"name":"__TypeKind","kind":"ENUM","fields":null},{"name":"Boolean","kind":"SCALAR","fields":null},{"name":"__Field","kind":"OBJECT","fields":[{"name":"name","type":{"name":null,"kind":"NON_NULL","ofType":{"name":"String","kind":"SCALAR"}}},{"name":"description","type":{"name":"String","kind":"SCALAR","ofType":null}},{"name":"args","type":{"name":null,"kind":"NON_NULL","ofType":{"name":null,"kind":"LIST"}}},{"name":"type","type":{"name":null,"kind":"NON_NULL","ofType":{"name":"__Type","kind":"OBJECT"}}},{"name":"isDeprecated","type":{"name":null,"kind":"NON_NULL","ofType":{"name":"Boolean","kind":"SCALAR"}}},{"name":"deprecationReason","type":{"name":"String","kind":"SCALAR","ofType":null}}]},{"name":"__InputValue","kind":"OBJECT","fields":[{"name":"name","type":{"name":null,"kind":"NON_NULL","ofType":{"name":"String","kind":"SCALAR"}}},{"name":"description","type":{"name":"String","kind":"SCALAR","ofType":null}},{"name":"type","type":{"name":null,"kind":"NON_NULL","ofType":{"name":"__Type","kind":"OBJECT"}}},{"name":"defaultValue","type":{"name":"String","kind":"SCALAR","ofType":null}}]},{"name":"__EnumValue","kind":"OBJECT","fields":[{"name":"name","type":{"name":null,"kind":"NON_NULL","ofType":{"name":"String","kind":"SCALAR"}}},{"name":"description","type":{"name":"String","kind":"SCALAR","ofType":null}},{"name":"isDeprecated","type":{"name":null,"kind":"NON_NULL","ofType":{"name":"Boolean","kind":"SCALAR"}}},{"name":"deprecationReason","type":{"name":"String","kind":"SCALAR","ofType":null}}]},{"name":"__Directive","kind":"OBJECT","fields":[{"name":"name","type":{"name":null,"kind":"NON_NULL","ofType":{"name":"String","kind":"SCALAR"}}},{"name":"description","type":{"name":"String","kind":"SCALAR","ofType":null}},{"name":"args","type":{"name":null,"kind":"NON_NULL","ofType":{"name":null,"kind":"LIST"}}},{"name":"onOperation","type":{"name":null,"kind":"NON_NULL","ofType":{"name":"Boolean","kind":"SCALAR"}}},{"name":"onFragment","type":{"name":null,"kind":"NON_NULL","ofType":{"name":"Boolean","kind":"SCALAR"}}},{"name":"onField","type":{"name":null,"kind":"NON_NULL","ofType":{"name":"Boolean","kind":"SCALAR"}}}]}]
+var rootSchema = [{"name":"Dansker","kind":"OBJECT","fields":[ {"name":"id","type":{"name":"GraphQLID","kind":"SCALAR","ofType":null}}, {"name":"greeting","type":{"name":"String","kind":"SCALAR","ofType":null}},{"name":"age","type":{"name":"Int","kind":"SCALAR","ofType":null}},{"name":"biler","type":{"name":null,"kind":"LIST","ofType":{"name":"Bil","kind":"OBJECT"}}}]},{"name":"Bil","kind":"OBJECT","fields":[ {"name":"id","type":{"name":"GraphQLID","kind":"SCALAR","ofType":null}}, {"name":"farve","type":{"name":"String","kind":"SCALAR","ofType":null}}]}]
 
 var getUserTypes = exports.getUserTypes = () => {
 	return getAllTypes().filter(x => x.name != 'Int' && x.name != 'String' && x.name != 'Boolean')	
@@ -40,20 +42,6 @@ var getSystemTypes = exports.getSystemTypes = () => {
 
 var getAllTypes = exports.getAllTypes = () => {
 	return JSON.parse(JSON.stringify(rootSchema.filter(x => x.name.indexOf('__') == -1 && x.name != 'RootQueryType')))
-}
-
-var getRootQueryType = (userTypes) => {
-	// var fields = {};
-	// userTypes.forEach(x => {
-	// 	fields[x.name] = {
-	// 		type: x
-	// 	}
-	// });
-	return new GraphQLObjectType({
-		name: 'RootQueryType',
-		fields: userTypes
-	})
-	return JSON.parse(JSON.stringify(rootSchema.filter(x => x.name == 'RootQueryType')[0]))
 }
 
 var generateTypeObject = (schema, nodeInterface) => {
@@ -126,6 +114,7 @@ isConnection = key => key.indexOf("Connection") > 0;
 
 var generateRootObject = (userTypes, nodeInterface) => {
 	var fields = {};
+	var mutationFields = {};
 	Object.keys(userTypes).forEach(key => {
 		fields[key] = {
 			type: userTypes[key],
@@ -144,15 +133,49 @@ var generateRootObject = (userTypes, nodeInterface) => {
 			}
 		}
 	})
+
+
+
 	
-	var node = new GraphQLObjectType({
-		name: 'Node',
-		fields: () => ({
-			id: {
-				type: GraphQLID
+		
+
+	Object.keys(userTypes).filter(x => x.indexOf('Edge') < 0 && x.indexOf('Connection') < 0).forEach(key => {
+		
+		 //console.log("KEY: ", userTypes[key])
+		var args = {};
+		Object.keys(userTypes[key]._typeConfig.fields).forEach(fieldName => {
+			var field = userTypes[key]._typeConfig.fields[fieldName]
+			var type = field.type.name == 'String' ? GraphQLString : field.type.name == 'Int' ? GraphQLInt : field.type.name == 'Boolean' ? GraphQLBoolean : field.type.name == 'GraphQLID' ? GraphQLID : null;
+			
+			if(type){
+				args[fieldName] = { type: type };
 			}
 		})
-	});
+
+		console.log("ARGS: ", args)
+
+
+		mutationFields['create' + key] = {
+			type: userTypes[key],
+			args: args,
+			resolve: (root, x) => { 
+				console.log("mutation:")
+				console.log(x)
+
+				x.type = 'testApp1:' + key;
+				x.id = cuid();
+				items.push(x)
+				
+				// if(isConnection(key)){
+				// 	console.log(root, x, key);
+				// 	return getItemsByType(userTypes[key.replace("Connection", "")].name)
+				// } else {
+				// 	return getItemById(userTypes[key].name, x.id)
+				// } 
+			}
+		}
+	})
+	
 	fields.node = {
 		name: 'Node',
 		type: nodeInterface,
@@ -168,10 +191,27 @@ var generateRootObject = (userTypes, nodeInterface) => {
 		interfaces: [ nodeInterface ]
 	}
 
+	fields.changeSchemaObject = {
+		name: "changeSchemaObject",
+		type: GraphQLString,
+		args: {
+			name: { type: GraphQLString},
+			schema: { type: GraphQLString},
+		},
+		resolve: function(root, x){
+			console.log("changeSchemaObject", root, x);
+		}
+	}
+
+
 	return new GraphQLSchema({
 	  query: new GraphQLObjectType({
 	    name: 'RootQueryType',
 	    fields: fields
+	  }),
+	  mutation: new GraphQLObjectType({
+	    name: 'RootMutationType',
+	    fields: mutationFields
 	  })
 	});
 }
