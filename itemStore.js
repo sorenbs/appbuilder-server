@@ -32,6 +32,9 @@ var items = [{
 
 var rootSchema = [{"name":"Dansker","kind":"OBJECT","fields":[ {"name":"id","type":{"name":"GraphQLID","kind":"SCALAR","ofType":null}}, {"name":"greeting","type":{"name":"String","kind":"SCALAR","ofType":null}},{"name":"age","type":{"name":"Int","kind":"SCALAR","ofType":null}},{"name":"biler","type":{"name":null,"kind":"LIST","ofType":{"name":"Bil","kind":"OBJECT"}}}]},{"name":"Bil","kind":"OBJECT","fields":[ {"name":"id","type":{"name":"GraphQLID","kind":"SCALAR","ofType":null}}, {"name":"farve","type":{"name":"String","kind":"SCALAR","ofType":null}}]}]
 
+exports.getRawSchema = () => rootSchema;
+exports.setRawSchema = schema => rootSchema = schema;
+
 var getUserTypes = exports.getUserTypes = () => {
 	return getAllTypes().filter(x => x.name != 'Int' && x.name != 'String' && x.name != 'Boolean')	
 }
@@ -145,33 +148,153 @@ var generateRootObject = (userTypes, nodeInterface) => {
 		var args = {};
 		Object.keys(userTypes[key]._typeConfig.fields).forEach(fieldName => {
 			var field = userTypes[key]._typeConfig.fields[fieldName]
-			var type = field.type.name == 'String' ? GraphQLString : field.type.name == 'Int' ? GraphQLInt : field.type.name == 'Boolean' ? GraphQLBoolean : field.type.name == 'GraphQLID' ? GraphQLID : null;
+			var type = field.type.name == 'String' ? GraphQLString : field.type.name == 'Int' ? GraphQLInt : field.type.name == 'Boolean' ? GraphQLBoolean : field.type.name == 'ID' ? GraphQLID : null;
 			
 			if(type){
 				args[fieldName] = { type: type };
 			}
 		})
 
-		console.log("ARGS: ", args)
+		args.clientMutationId = {type: GraphQLString};
 
+		var mutationPayloadType = new GraphQLObjectType({
+			name: '_' + key + 'Payload',
+			fields: () => {
+				var fields = {
+					clientMutationId: {
+						type: GraphQLString,
+						resolve: function(root, x){
+							console.log(root)
+							return root.clientMutationId;
+						}
+					},
+					id: {
+						type: GraphQLID,
+						resolve: function(root, x){
+							return root.id;
+						}
+					}
+				};
+				fields['changed' + key] = {
+					type: userTypes[key],
+					resolve: function(root, x){
+						return root['changed' + key];
+					}
+				}
+				return fields; 
+			}
+		})
 
 		mutationFields['create' + key] = {
-			type: userTypes[key],
+			type: mutationPayloadType,
 			args: args,
 			resolve: (root, x) => { 
-				console.log("mutation:")
-				console.log(x)
 
 				x.type = 'testApp1:' + key;
 				x.id = cuid();
 				items.push(x)
-				
-				// if(isConnection(key)){
-				// 	console.log(root, x, key);
-				// 	return getItemsByType(userTypes[key.replace("Connection", "")].name)
-				// } else {
-				// 	return getItemById(userTypes[key].name, x.id)
-				// } 
+
+				payload = {
+					id: x.id,
+					clientMutationId: x.clientMutationId,
+					viewer: null,
+				}
+
+				payload['changed' + key] = x;
+				payload['changed' + key + "Edge"] = null;
+
+				return payload;
+			}
+		}
+
+		mutationFields['update' + key] = {
+			type: mutationPayloadType,
+			args: args,
+			resolve: (root, x) => { 
+
+				var oldItem = items.filter(x => x.type == ('testApp1:' + key) && x.id == x.id)[0]
+
+				if(!oldItem){
+					return "Wrong ID!!!"
+				}
+
+				Object.keys(x).forEach(property => {
+					if(property != "clientMutationId"){
+						oldItem[property] = x[property]
+					}
+				})
+
+				payload = {
+					id: x.id,
+					clientMutationId: x.clientMutationId,
+					viewer: null,
+				}
+
+				payload['changed' + key] = oldItem;
+				payload['changed' + key + "Edge"] = null;
+
+				return payload;
+			}
+		}
+
+		mutationFields['replace' + key] = {
+			type: mutationPayloadType,
+			args: args,
+			resolve: (root, x) => { 
+
+				var oldItem = items.filter(x => x.type == ('testApp1:' + key) && x.id == x.id)[0]
+
+				if(!oldItem){
+					return "Wrong ID!!!"
+				}
+
+				var newItem = { id: oldItem.id, type: oldItem.type};
+
+				Object.keys(x).forEach(property => {
+					if(property != "clientMutationId" && property != "clientMutationId"){
+						newItem[property] = x[property]
+					}
+				})
+
+				items.splice(items.indexOf(oldItem), 1);
+				items.push(newItem);
+
+				payload = {
+					id: x.id,
+					clientMutationId: x.clientMutationId,
+					viewer: null,
+				}
+
+				payload['changed' + key] = newItem;
+				payload['changed' + key + "Edge"] = null;
+
+				return payload;
+			}
+		}
+
+		mutationFields['delete' + key] = {
+			type: mutationPayloadType,
+			args: args,
+			resolve: (root, x) => { 
+
+				var oldItem = items.filter(x => x.type == ('testApp1:' + key) && x.id == x.id)[0]
+
+				if(!oldItem){
+					return "Wrong ID!!!"
+				}
+
+				items.splice(items.indexOf(oldItem), 1);
+
+				payload = {
+					id: x.id,
+					clientMutationId: x.clientMutationId,
+					viewer: null,
+				}
+
+				payload['changed' + key] = oldItem;
+				payload['changed' + key + "Edge"] = null;
+
+				return payload;
 			}
 		}
 	})
