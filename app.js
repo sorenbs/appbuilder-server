@@ -52,12 +52,17 @@ app.use('/graphql/:appId', graphqlHTTP(request => {
     }))}));
 
 app.get('/api/:appId/schema', (req, res) => {
-  res.send({schema: ItemStore.getRawSchema(request.params.appId)});
+  ItemStore.getRawSchema(req.params.appId).then(schema => {
+    res.send({schema: schema});
+  })
+  
 })
 
 app.post('/api/:appId/schema', (req, res) => {
   console.log(JSON.stringify(req.body.schema, null, 4))
-  res.send({schema: ItemStore.setRawSchema(request.params.appId, req.body.schema)});
+  ItemStore.setRawSchema(req.params.appId, req.body.schema).then(() => {
+    res.send({status: req.body.schema});
+  })
 })
 
 app.listen(5000)
