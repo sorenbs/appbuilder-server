@@ -65,6 +65,7 @@ app.get('/api/schema', (req, res) => {
 })
 
 app.post('/api/schema', (req, res) => {
+  console.log(JSON.stringify(req.body.schema, null, 4))
   res.send({schema: ItemStore.setRawSchema(req.body.schema)});
 })
 
