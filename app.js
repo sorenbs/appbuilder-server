@@ -6,6 +6,7 @@ var GraphQLString = require('graphql').GraphQLString;
 var GraphQLInt = require('graphql').GraphQLInt;
 var GraphQLList = require('graphql').GraphQLList;
 var printSchema = require('graphql/utilities').printSchema;
+var Schema = require('./models/Schema');
 
 
 var ItemStore = require('./itemStore.js')
@@ -15,7 +16,7 @@ var query = `{Dansker(id:"1") {age, greeting, biler(first:1){edges{node{farve, i
 //var query = `{BilConnection{edges{node{farve}}}}`
 // DanskerConnection{edges{node{id,greeting}}}
 
-ItemStore.generateSchema('testApp1').then(schema => console.log(printSchema(schema)));
+//ItemStore.generateSchema('testApp1').then(schema => console.log(printSchema(schema)));
 
 
 //WEB
@@ -63,6 +64,13 @@ app.post('/api/:appId/schema', (req, res) => {
   ItemStore.setRawSchema(req.params.appId, req.body.schema).then(() => {
     res.send({status: req.body.schema});
   })
+})
+
+app.get('/api/secret/list-all-apps', (req, res) => {
+  Schema.listAll().then(schemas => {
+    console.log(schemas)
+    res.send({apps: schemas.map(x => x.id)})
+  }).catch(console.log)
 })
 
 app.listen(5000)
