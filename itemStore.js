@@ -11,40 +11,27 @@ var GraphQLID = require('graphql').GraphQLID;
 var GraphQLInterfaceType = require('graphql').GraphQLInterfaceType;
 var _ = require('underscore');
 var cuid = require('cuid');
+var Data = require('./models/Data');
+var Schema = require('./models/Schema');
 
-var items = [{
-		type: 'testApp1:Dansker',
-		id: '1',
-		greeting: "Dav, du!",
-		age: 17,
-		biler: [{type: 'Bil', id: '1'},{type: 'Bil', id: '2'}]
-	},
-	{
-		type: 'testApp1:Bil',
-		id: '1',
-		farve: 'Sort'
-	},
-	{
-		type: 'testApp1:Bil',
-		id: '2',
-		farve: 'Hvid'
-	}]
+var getRawSchema = exports.getRawSchema = (appId) => Schema.find(appId);
+exports.setRawSchema = (appId, newSchema) => 
+	getRawSchema(appId).then(schema => { 
+		schema = schema || {id: appId}; 
+		schema.schema = newSchema; 
+		return Schema.save(schema)
+	});
 
-var rootSchema = [{"name":"Dansker","kind":"OBJECT","fields":[ {"name":"id","type":{"name":"GraphQLID","kind":"SCALAR","ofType":null}}, {"name":"greeting","type":{"name":"String","kind":"SCALAR","ofType":null}},{"name":"age","type":{"name":"Int","kind":"SCALAR","ofType":null}},{"name":"biler","type":{"name":null,"kind":"LIST","ofType":{"name":"Bil","kind":"OBJECT"}}}]},{"name":"Bil","kind":"OBJECT","fields":[ {"name":"id","type":{"name":"GraphQLID","kind":"SCALAR","ofType":null}}, {"name":"farve","type":{"name":"String","kind":"SCALAR","ofType":null}}]}]
-
-exports.getRawSchema = () => rootSchema;
-exports.setRawSchema = schema => rootSchema = schema;
-
-var getUserTypes = exports.getUserTypes = () => {
-	return getAllTypes().filter(x => x.name != 'Int' && x.name != 'String' && x.name != 'Boolean')	
+var getUserTypes = exports.getUserTypes = (appId) => {
+	return getAllTypes(appId).then(types => types.filter(x => x.name != 'Int' && x.name != 'String' && x.name != 'Boolean'))
 }
 
 var getSystemTypes = exports.getSystemTypes = () => {
 	return getAllTypes().filter(x =>  x.name == 'Int' || x.name == 'String' || x.name == 'Boolean')
 }
 
-var getAllTypes = exports.getAllTypes = () => {
-	return JSON.parse(JSON.stringify(rootSchema.filter(x => x.name.indexOf('__') == -1 && x.name != 'RootQueryType')))
+var getAllTypes = exports.getAllTypes = (appId) => {
+	return getRawSchema(appId).then(schema => JSON.parse(JSON.stringify(schema.schema.filter(x => x.name.indexOf('__') == -1 && x.name != 'RootQueryType'))))
 }
 
 var generateTypeObject = (schema, nodeInterface) => {
@@ -94,7 +81,7 @@ var generateEdgeTypeObject = (schema, type) => {
 	return typeObject;
 }
 
-var generateConnectionTypeObject = (schema, edge, pageInfo) => {
+var generateConnectionTypeObject = (appId, schema, edge, pageInfo) => {
 	var typeObject = new GraphQLObjectType({
 		name: schema.name + 'Connection',
 		fields: () => ({
@@ -104,7 +91,7 @@ var generateConnectionTypeObject = (schema, edge, pageInfo) => {
 			edges: {
 				type: new GraphQLList(edge),
 				resolve: function(root, x){ 
-					var a = (x.first ? _.take(root, x.first) : root).map(item => getItemById(item.type.split(":").reverse()[0], item.id)); return a
+					var a = (x.first ? _.take(root, x.first) : root).map(item => getItemById(appId, item.type.split(":").reverse()[0], item.id)); return a
 				}
 			}
 		})
@@ -115,7 +102,7 @@ var generateConnectionTypeObject = (schema, edge, pageInfo) => {
 
 isConnection = key => key.indexOf("Connection") > 0;
 
-var generateRootObject = (userTypes, nodeInterface) => {
+var generateRootObject = (appId, userTypes, nodeInterface) => {
 	var fields = {};
 	var mutationFields = {};
 	Object.keys(userTypes).forEach(key => {
@@ -129,9 +116,10 @@ var generateRootObject = (userTypes, nodeInterface) => {
 			resolve: (root, x) => { 
 				if(isConnection(key)){
 					console.log(root, x, key);
-					return getItemsByType(userTypes[key.replace("Connection", "")].name)
+					return getItemsByType(appId, userTypes[key.replace("Connection", "")].name)
 				} else {
-					return getItemById(userTypes[key].name, x.id)
+					getItemById(appId, userTypes[key].name, x.id).then(console.log)
+					return getItemById(appId, userTypes[key].name, x.id)
 				} 
 			}
 		}
@@ -190,20 +178,18 @@ var generateRootObject = (userTypes, nodeInterface) => {
 			args: args,
 			resolve: (root, x) => { 
 
-				x.type = 'testApp1:' + key;
-				x.id = cuid();
-				items.push(x)
+				return createItem(appId, key, x).then(x => {
+					payload = {
+						id: x.id,
+						clientMutationId: x.clientMutationId,
+						viewer: null,
+					}
 
-				payload = {
-					id: x.id,
-					clientMutationId: x.clientMutationId,
-					viewer: null,
-				}
+					payload['changed' + key] = x;
+					payload['changed' + key + "Edge"] = null;
 
-				payload['changed' + key] = x;
-				payload['changed' + key + "Edge"] = null;
-
-				return payload;
+					return payload;
+				})
 			}
 		}
 
@@ -212,28 +198,30 @@ var generateRootObject = (userTypes, nodeInterface) => {
 			args: args,
 			resolve: (root, x) => { 
 
-				var oldItem = items.filter(x => x.type == ('testApp1:' + key) && x.id == x.id)[0]
-
-				if(!oldItem){
-					return "Wrong ID!!!"
-				}
-
-				Object.keys(x).forEach(property => {
-					if(property != "clientMutationId"){
-						oldItem[property] = x[property]
+				return getItemById(appId, key, x.id).then(oldItem => {
+					if(!oldItem){
+						return "Wrong ID!!!"
 					}
-				})
 
-				payload = {
-					id: x.id,
-					clientMutationId: x.clientMutationId,
-					viewer: null,
-				}
+					Object.keys(x).forEach(property => {
+						if(property != "clientMutationId"){
+							oldItem[property] = x[property]
+						}
+					})
 
-				payload['changed' + key] = oldItem;
-				payload['changed' + key + "Edge"] = null;
+					return updateItem(oldItem).then(oldItem => {
+						payload = {
+							id: x.id,
+							clientMutationId: x.clientMutationId,
+							viewer: null,
+						}
 
-				return payload;
+						payload['changed' + key] = oldItem;
+						payload['changed' + key + "Edge"] = null;
+
+						return payload;
+					}).catch(console.log)
+				}).catch(console.log)
 			}
 		}
 
@@ -242,33 +230,34 @@ var generateRootObject = (userTypes, nodeInterface) => {
 			args: args,
 			resolve: (root, x) => { 
 
-				var oldItem = items.filter(x => x.type == ('testApp1:' + key) && x.id == x.id)[0]
+				return getItemById(appId, key, x.id).then(oldItem => {
 
-				if(!oldItem){
-					return "Wrong ID!!!"
-				}
-
-				var newItem = { id: oldItem.id, type: oldItem.type};
-
-				Object.keys(x).forEach(property => {
-					if(property != "clientMutationId" && property != "clientMutationId"){
-						newItem[property] = x[property]
+					if(!oldItem){
+						return "Wrong ID!!!"
 					}
-				})
 
-				items.splice(items.indexOf(oldItem), 1);
-				items.push(newItem);
+					var newItem = { id: oldItem.id, model: oldItem.model};
 
-				payload = {
-					id: x.id,
-					clientMutationId: x.clientMutationId,
-					viewer: null,
-				}
+					Object.keys(x).forEach(property => {
+						if(property != "clientMutationId" && property != "clientMutationId"){
+							newItem[property] = x[property]
+						}
+					})
 
-				payload['changed' + key] = newItem;
-				payload['changed' + key + "Edge"] = null;
+					return updateItem(newItem).then(newItem => {
 
-				return payload;
+						payload = {
+							id: x.id,
+							clientMutationId: x.clientMutationId,
+							viewer: null,
+						}
+
+						payload['changed' + key] = newItem;
+						payload['changed' + key + "Edge"] = null;
+
+						return payload;
+					}).catch(console.log)
+				}).catch(console.log)
 			}
 		}
 
@@ -277,24 +266,25 @@ var generateRootObject = (userTypes, nodeInterface) => {
 			args: args,
 			resolve: (root, x) => { 
 
-				var oldItem = items.filter(x => x.type == ('testApp1:' + key) && x.id == x.id)[0]
+				return getItemById(appId, key, x.id).then(oldItem => {
 
-				if(!oldItem){
-					return "Wrong ID!!!"
-				}
+					if(!oldItem){
+						return "Wrong ID!!!"
+					}
 
-				items.splice(items.indexOf(oldItem), 1);
+					return deleteItem(appId, key, x.id).then(() => {
+						payload = {
+							id: x.id,
+							clientMutationId: x.clientMutationId,
+							viewer: null,
+						}
 
-				payload = {
-					id: x.id,
-					clientMutationId: x.clientMutationId,
-					viewer: null,
-				}
+						payload['changed' + key] = oldItem;
+						payload['changed' + key + "Edge"] = null;
 
-				payload['changed' + key] = oldItem;
-				payload['changed' + key + "Edge"] = null;
-
-				return payload;
+						return payload;
+					}).catch(console.log)
+				}).catch(console.log)
 			}
 		}
 	})
@@ -309,7 +299,7 @@ var generateRootObject = (userTypes, nodeInterface) => {
         },
 		resolve: function(root, x){
 			console.log(x.id.split(':')[0], x.id.split(':')[1])
-			return getItemById(x.id.split(':')[0], x.id.split(':')[1])
+			return getItemById(appId, x.id.split(':')[0], x.id.split(':')[1])
 		},
 		interfaces: [ nodeInterface ]
 	}
@@ -339,74 +329,86 @@ var generateRootObject = (userTypes, nodeInterface) => {
 	});
 }
 
-var generateSchema = exports.generateSchema = () => {
-	var userTypes = {};
-	var pageInfo = new GraphQLObjectType({
-		name: 'PageInfo',
-		fields: () => ({
-			hasNextPage: {
-				type: GraphQLBoolean,
-				resolve: function(root, x){
-					return true;
+var generateSchema = exports.generateSchema = (appId) => {
+	return getUserTypes(appId).then(userTypesFromSchema => {
+
+		var userTypes = {};
+		var pageInfo = new GraphQLObjectType({
+			name: 'PageInfo',
+			fields: () => ({
+				hasNextPage: {
+					type: GraphQLBoolean,
+					resolve: function(root, x){
+						return true;
+					}
+				},
+				hasPreviousPage: {
+					type: GraphQLBoolean
 				}
-			},
-			hasPreviousPage: {
-				type: GraphQLBoolean
+			})
+		});
+		var nodeInterface = new GraphQLInterfaceType({
+			name: 'NodeInterface',
+			fields: () => ({
+				id: {
+					type: GraphQLID
+				}
+			}),
+			resolveType: function(node){
+				console.log("resolve type: ", node)
+				return userTypes[node.type.split(':')[1]];
 			}
 		})
-	});
-	var nodeInterface = new GraphQLInterfaceType({
-		name: 'NodeInterface',
-		fields: () => ({
-			id: {
-				type: GraphQLID
-			}
-		}),
-		resolveType: function(node){
-			console.log("resolve type: ", node)
-			return userTypes[node.type.split(':')[1]];
-		}
-	})
-	getUserTypes().forEach(x => {
-		var type = userTypes[x.name] = generateTypeObject(x, nodeInterface);
-		var edge = userTypes[x.name + 'Edge'] = generateEdgeTypeObject(x, type);
-		var connection = userTypes[x.name + 'Connection'] = generateConnectionTypeObject(x, edge, pageInfo);
-	})
-
-	Object.keys(userTypes).forEach(key => {
-		var type = userTypes[key];
-		Object.keys(type['_typeConfig'].fields).forEach(key => {
-			var field = type['_typeConfig'].fields[key];
-			if(field.type.isUserType){
-				if(field.type.type.name) { // one-one relationship
-					var typeName = field.type.type.name;
-					field.type = userTypes[typeName]
-					field.resolve = function(x){ return ItemStore.getItemById(x[key].type, x[key].id) }
-				}else if(field.type.type.kind == 'LIST') { //one-many relationship
-					var typeName = field.type.type.ofType.name;
-					field.type = userTypes[typeName + 'Connection']
-					field.args = {first: {type: GraphQLInt}}
-				}
-			}
-			//console.log(field)
+		userTypesFromSchema.forEach(x => {
+			var type = userTypes[x.name] = generateTypeObject(x, nodeInterface);
+			var edge = userTypes[x.name + 'Edge'] = generateEdgeTypeObject(x, type);
+			var connection = userTypes[x.name + 'Connection'] = generateConnectionTypeObject(appId, x, edge, pageInfo);
 		})
-	})
 
-	return generateRootObject(userTypes, nodeInterface)
+		Object.keys(userTypes).forEach(key => {
+			var type = userTypes[key];
+			Object.keys(type['_typeConfig'].fields).forEach(key => {
+				var field = type['_typeConfig'].fields[key];
+				if(field.type.isUserType){
+					if(field.type.type.name) { // one-one relationship
+						var typeName = field.type.type.name;
+						field.type = userTypes[typeName]
+						field.resolve = function(x){ return ItemStore.getItemById(appId, x[key].type, x[key].id) }
+					}else if(field.type.type.kind == 'LIST') { //one-many relationship
+						var typeName = field.type.type.ofType.name;
+						field.type = userTypes[typeName + 'Connection']
+						field.args = {first: {type: GraphQLInt}}
+					}
+				}
+				//console.log(field)
+			})
+		})
+
+		return generateRootObject(appId, userTypes, nodeInterface)
+	}).catch(console.log);
 }
-//generateSchema()
-//console.log(generateSchema());
 
-exports.getAllItemsByType = function(type){
-	return Promise.resolve(items.filter(x => x.type == 'testApp1:' + type));
+var getItemById = exports.getItemById = function(appId, type, id) {
+	return Data.findManyByModelAndId(appId + ':' + type, id).catch(console.log)
 }
 
-var getItemById = exports.getItemById = function(type, id) {
-	return Promise.resolve(items.filter(x => x.type == 'testApp1:' + type && x.id == id)[0]);
+var getItemsByType = exports.getItemsByType = function(appId, type) {
+	return Data.findManyByModel(appId + ':' + type).catch(console.log)
 }
 
-var getItemsByType = exports.getItemsByType = function(type) {
-	console.log(type)
-	console.log(items.filter(x => x.type == 'testApp1:' + type))
-	return Promise.resolve(items.filter(x => x.type == 'testApp1:' + type));
+var createItem = function(appId, type, item) {
+	item.model = appId + ":" + type;
+	return Data.save(item).catch(console.log)
+}
+
+var updateItem = function(item) {
+	if(!item.model || !item.id){
+		return Promise.reject("model and id must be present. Did you intend to create a new item?")
+	}
+
+	return Data.save(item).catch(console.log)
+}
+
+var deleteItem = function(appId, type, id) {
+	return Data.delete(appId + ":" + type, id).catch(console.log)
 }

@@ -15,18 +15,7 @@ var query = `{Dansker(id:"1") {age, greeting, biler(first:1){edges{node{farve, i
 //var query = `{BilConnection{edges{node{farve}}}}`
 // DanskerConnection{edges{node{id,greeting}}}
 
-var schema = ItemStore.generateSchema();
-console.log(printSchema(schema))
-
-graphql(schema, query).then(result => {
-
-  // Prints
-  // {
-  //   data: { hello: "world" }
-  // }
-  console.log(JSON.stringify(result));
-
-}).catch(console.log);
+ItemStore.generateSchema('testApp1').then(schema => console.log(printSchema(schema)));
 
 
 //WEB
@@ -53,20 +42,22 @@ app.use(bodyParser.json({limit: '50mb'}))
 
 app.use(session({ secret: 'keyboard cat', cookie: { maxAge: 60000 }}));
 
-app.use('/graphql', graphqlHTTP(request => ({
-  schema: ItemStore.generateSchema(),
-  rootValue: request.session,
-  graphiql: true,
-  pretty: true
-})));
+app.use('/graphql/:appId', graphqlHTTP(request => {
+    return ItemStore.generateSchema(request.params.appId)
+    .then(schema => ({
+      schema: schema,
+      rootValue: request.session,
+      graphiql: true,
+      pretty: true
+    }))}));
 
-app.get('/api/schema', (req, res) => {
-  res.send({schema: ItemStore.getRawSchema()});
+app.get('/api/:appId/schema', (req, res) => {
+  res.send({schema: ItemStore.getRawSchema(request.params.appId)});
 })
 
-app.post('/api/schema', (req, res) => {
+app.post('/api/:appId/schema', (req, res) => {
   console.log(JSON.stringify(req.body.schema, null, 4))
-  res.send({schema: ItemStore.setRawSchema(req.body.schema)});
+  res.send({schema: ItemStore.setRawSchema(request.params.appId, req.body.schema)});
 })
 
 app.listen(5000)

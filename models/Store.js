@@ -1,6 +1,6 @@
 var AWS = require('aws-sdk');
 var config = new AWS.Config();
-config.loadFromPath('./awscredentials.json');
+config.loadFromPath('./models/awscredentials.json');
 AWS.config.dynamodb = config;
 var marshalItem = require('dynamodb-marshaler').marshalItem;
 var unmarshalItem = require('dynamodb-marshaler').unmarshalItem;
