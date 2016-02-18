@@ -1,2 +1,10 @@
+branch-defaults:
+  master:
+    environment: appbuilder-server-dev
 global:
-  profile: eb-cli
+  application_name: appbuilder-server
+  default_ec2_keyname: null
+  default_platform: Node.js
+  default_region: eu-west-1
+  profile: appbuilder
+  sc: git

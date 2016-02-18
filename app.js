@@ -73,4 +73,6 @@ app.get('/api/secret/list-all-apps', (req, res) => {
   }).catch(console.log)
 })
 
-app.listen(5000)
+const APP_PORT = parseInt(process.env.PORT || 5000);
+app.listen(APP_PORT)
+console.log('API listening on port ' + APP_PORT)
