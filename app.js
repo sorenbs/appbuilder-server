@@ -66,6 +66,24 @@ app.post('/api/:appId/schema', (req, res) => {
   })
 })
 
+app.post('/api/:appId/create', (req, res) => {
+  ItemStore.setRawSchema(req.params.appId, []).then(() => {
+    res.send({status: "created " + req.params.appId});
+  })
+})
+
+app.post('/api/:appId/reset', (req, res) => {
+  ItemStore.setRawSchema(req.params.appId, []).then(() => {
+    res.send({status: "resat " + req.params.appId});
+  })
+})
+
+app.post('/api/:appId/delete', (req, res) => {
+  Schema.delete(req.params.appId).then(() => {
+    res.send({status: "deleted " + req.params.appId});
+  })
+})
+
 app.get('/api/secret/list-all-apps', (req, res) => {
   Schema.listAll().then(schemas => {
     console.log(schemas)
