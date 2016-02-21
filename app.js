@@ -7,6 +7,7 @@ var GraphQLInt = require('graphql').GraphQLInt;
 var GraphQLList = require('graphql').GraphQLList;
 var printSchema = require('graphql/utilities').printSchema;
 var Schema = require('./models/Schema');
+var introspectionQuery = require('graphql/utilities').introspectionQuery
 
 
 var ItemStore = require('./itemStore.js')
@@ -51,6 +52,15 @@ app.use('/graphql/:appId', graphqlHTTP(request => {
       graphiql: true,
       pretty: true
     }))}));
+
+app.get('/graphql-schema/:appId', (req, res) => {
+  ItemStore.generateSchema(req.params.appId)
+    .then((schema) => graphql(schema, introspectionQuery))
+    .then((result) => {
+      console.log(result)
+      res.send(result)
+    })
+})
 
 app.get('/api/:appId/schema', (req, res) => {
   ItemStore.getRawSchema(req.params.appId).then(schema => {
