@@ -91,7 +91,7 @@ var generateConnectionTypeObject = (appId, schema, edge, pageInfo) => {
 			edges: {
 				type: new GraphQLList(edge),
 				resolve: function(root, x){ 
-					var a = (x.first ? _.take(root, x.first) : root).map(item => getItemById(appId, item.type.split(":").reverse()[0], item.id)); return a
+					return root;
 				}
 			}
 		})
@@ -105,8 +105,8 @@ isConnection = key => key.indexOf("Connection") > 0;
 var generateRootObject = (appId, userTypes, nodeInterface) => {
 	var fields = {};
 	var mutationFields = {};
-	Object.keys(userTypes).forEach(key => {
-		fields[key] = {
+	Object.keys(userTypes).filter(x => x.indexOf('Edge') < 0 && x.indexOf('Connection') < 0).forEach(key => {
+		fields[key + "ById"] = {
 			type: userTypes[key],
 			args: {
 	          id: {
@@ -124,6 +124,34 @@ var generateRootObject = (appId, userTypes, nodeInterface) => {
 			}
 		}
 	})
+
+	var viewerFields = {}
+	Object.keys(userTypes).filter(x => x.indexOf('Edge') < 0 && x.indexOf('Connection') < 0).forEach(key => {
+		fields["all" + key + "s"] = {
+			type: userTypes[key + 'Connection'],
+			args: {
+	          first: {
+	            type: GraphQLInt
+	          },
+	          last: {
+	            type: GraphQLInt
+	          },
+	        },
+			resolve: (root, x) => { 
+				console.log(root,x)
+				return getItemsByType(appId, key).then(items => {console.log(items); return x.first ? _.take(items, x.first) : items})
+			}
+		}
+	})
+
+	// var viewerType = new GraphQLObjectType({
+	//     name: 'Viewer',
+	//     fields: viewerFields
+	//   })
+
+	// fields["viewer"] = {
+	// 	type: viewerType
+	// };
 
 
 
@@ -378,6 +406,7 @@ var generateSchema = exports.generateSchema = (appId) => {
 						var typeName = field.type.type.ofType.name;
 						field.type = userTypes[typeName + 'Connection']
 						field.args = {first: {type: GraphQLInt}}
+						field.resolve = function(x){ console.log("RESOLVE", lowercaseFirstLetter(type.name) + "Id"); return getItemsByType(appId, typeName).then(listItems => listItems.filter(listItem => listItem[lowercaseFirstLetter(type.name) + "Id"] == x.id)) }
 					}
 				}
 				//console.log(field)
@@ -386,6 +415,10 @@ var generateSchema = exports.generateSchema = (appId) => {
 
 		return generateRootObject(appId, userTypes, nodeInterface)
 	}).catch(console.log);
+}
+
+function lowercaseFirstLetter(string) {
+    return string.charAt(0).toLowerCase() + string.slice(1);
 }
 
 var getItemById = exports.getItemById = function(appId, type, id) {
