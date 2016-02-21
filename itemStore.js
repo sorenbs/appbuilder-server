@@ -127,7 +127,7 @@ var generateRootObject = (appId, userTypes, nodeInterface) => {
 
 	var viewerFields = {}
 	Object.keys(userTypes).filter(x => x.indexOf('Edge') < 0 && x.indexOf('Connection') < 0).forEach(key => {
-		fields["all" + key + "s"] = {
+		viewerFields["all" + key + "s"] = {
 			type: userTypes[key + 'Connection'],
 			args: {
 	          first: {
@@ -144,10 +144,15 @@ var generateRootObject = (appId, userTypes, nodeInterface) => {
 		}
 	})
 
-	// var viewerType = new GraphQLObjectType({
-	//     name: 'Viewer',
-	//     fields: viewerFields
-	//   })
+	var viewerType = {
+		type: new GraphQLObjectType({
+			name: 'Viewer',
+		    fields: viewerFields
+		}),
+		resolve: () => ({})
+	  }
+
+	fields.viewer = viewerType
 
 	// fields["viewer"] = {
 	// 	type: viewerType
