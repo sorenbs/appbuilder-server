@@ -77,7 +77,7 @@ app.post('/api/:appId/schema', (req, res) => {
 })
 
 app.post('/api/:appId/create', (req, res) => {
-  ItemStore.setRawSchema(req.params.appId, []).then(() => {
+  ItemStore.setRawSchema(req.params.appId, [{"name":"Example","kind":"OBJECT","fields":[{"name":"id","type":{"ofType":null,"name":"GraphQLID","kind":"SCALAR"}},{"name":"greeting","type":{"ofType":null,"name":"String","kind":"SCALAR"}}]}]).then(() => {
     res.send({status: "created " + req.params.appId});
   })
 })
