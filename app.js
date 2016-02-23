@@ -35,9 +35,13 @@ var app = express();
 app.all('*', function(req, res, next) {
       res.header("Access-Control-Allow-Origin", "*");
       res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
-      res.header("Access-Control-Allow-Headers", "X-Requested-With, session, Content-Type, Accept");
+      res.header("Access-Control-Allow-Headers", "X-Requested-With, session, Content-Type, Accept, Access-Control-Request-Headers, Access-Control-Request-Method, Origin, Referer, User-Agent");
       next();
   });
+
+app.options('*', function(req, res) {
+  res.send({status: "ok"})
+})
 
 app.use(bodyParser.urlencoded({ extended: false, limit: '50mb'}))
 app.use(bodyParser.json({limit: '50mb'}))
@@ -51,7 +55,7 @@ app.use('/graphql/:appId', graphqlHTTP(request => {
       rootValue: request.session,
       graphiql: true,
       pretty: true
-    }))}));
+    })).catch(console.log)}));
 
 app.get('/graphql-schema/:appId', (req, res) => {
   ItemStore.generateSchema(req.params.appId)
