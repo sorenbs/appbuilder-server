@@ -8,6 +8,7 @@ var GraphQLInt = require('graphql').GraphQLInt;
 var GraphQLBoolean = require('graphql').GraphQLBoolean;
 var GraphQLList = require('graphql').GraphQLList;
 var GraphQLID = require('graphql').GraphQLID;
+var mutationWithClientMutationId = require('graphql-relay').mutationWithClientMutationId
 var GraphQLInterfaceType = require('graphql').GraphQLInterfaceType;
 var _ = require('underscore');
 var cuid = require('cuid');
@@ -176,8 +177,6 @@ var generateRootObject = (appId, userTypes, nodeInterface) => {
 			}
 		})
 
-		args.clientMutationId = {type: GraphQLString};
-
 		var mutationPayloadType = new GraphQLObjectType({
 			name: '_' + key + 'Payload',
 			fields: () => {
@@ -206,13 +205,27 @@ var generateRootObject = (appId, userTypes, nodeInterface) => {
 			}
 		})
 
-		mutationFields['create' + key] = {
-			type: mutationPayloadType,
-			args: args,
-			resolve: (root, x) => { 
+		var outputFields = {
+			clientMutationId: {
+				type: GraphQLString,
+			},
+			id: {
+				type: GraphQLID,
+			},
+			viewer: viewerType,
+		};
+		outputFields['changed' + key] = {
+			type: userTypes[key],
+		}
+
+		mutationFields['Create' + key] = mutationWithClientMutationId({
+			name: 'Create' + key,
+			inputFields: args,
+			outputFields: outputFields,
+			mutateAndGetPayload: (x) => { 
 
 				return createItem(appId, key, x).then(x => {
-					payload = {
+					var payload = {
 						id: x.id,
 						clientMutationId: x.clientMutationId,
 						viewer: null,
@@ -224,12 +237,13 @@ var generateRootObject = (appId, userTypes, nodeInterface) => {
 					return payload;
 				})
 			}
-		}
+		})
 
-		mutationFields['update' + key] = {
-			type: mutationPayloadType,
-			args: args,
-			resolve: (root, x) => { 
+		mutationFields['Update' + key] = mutationWithClientMutationId({
+			name: 'Update' + key,
+			inputFields: args,
+			outputFields: outputFields,
+			mutateAndGetPayload: (x) => { 
 
 				return getItemById(appId, key, x.id).then(oldItem => {
 					if(!oldItem){
@@ -256,12 +270,13 @@ var generateRootObject = (appId, userTypes, nodeInterface) => {
 					}).catch(console.log)
 				}).catch(console.log)
 			}
-		}
+		})
 
-		mutationFields['replace' + key] = {
-			type: mutationPayloadType,
-			args: args,
-			resolve: (root, x) => { 
+		mutationFields['Replace' + key] = mutationWithClientMutationId({
+			name: 'Replace' + key,
+			inputFields: args,
+			outputFields: outputFields,
+			mutateAndGetPayload: (x) => { 
 
 				return getItemById(appId, key, x.id).then(oldItem => {
 
@@ -292,12 +307,13 @@ var generateRootObject = (appId, userTypes, nodeInterface) => {
 					}).catch(console.log)
 				}).catch(console.log)
 			}
-		}
+		})
 
-		mutationFields['delete' + key] = {
-			type: mutationPayloadType,
-			args: args,
-			resolve: (root, x) => { 
+		mutationFields['Delete' + key] = mutationWithClientMutationId({
+			name: 'Delete' + key,
+			inputFields: args,
+			outputFields: outputFields,
+			mutateAndGetPayload: (x) => { 
 
 				return getItemById(appId, key, x.id).then(oldItem => {
 
@@ -319,7 +335,7 @@ var generateRootObject = (appId, userTypes, nodeInterface) => {
 					}).catch(console.log)
 				}).catch(console.log)
 			}
-		}
+		})
 	})
 	
 	fields.node = {
