@@ -18,7 +18,7 @@ exports.save = function(item) {
 
 	return new Promise(function(resolve, reject){
 		store.client.putItem({
-		    TableName: 'data',
+		    TableName: 'user',
 		    Item: marshalItem(item)
 		}, function(err, data){
 			if (err) {
@@ -31,11 +31,11 @@ exports.save = function(item) {
 	});
 }
 
-exports.findByModelAndId = function(model, id){
+exports.find = function(id){
 	return new Promise(function(resolve, reject){
 		store.client.getItem({
-			TableName: 'data',
-			Key: marshalItem({model: model, id: id})
+			TableName: 'user',
+			Key: marshalItem({id: id})
 		}, function(err, data){
 			if(err) {
 				reject(err)
@@ -51,33 +51,64 @@ exports.findByModelAndId = function(model, id){
 	});
 }
 
-exports.findManyByModel = function(model){
-	return store.query({
-		TableName: 'data',
-		KeyConditions:
+exports.findBySession = function(session){
+    return store.query({
+        TableName: 'user',
+        IndexName: 'session-index',
+        KeyConditions:
         {
-            "model" : 
+            "session" : 
             {
-                "AttributeValueList" : [{ "S" : model }],
+                "AttributeValueList" : [{ "S" : session }],
                 "ComparisonOperator" : "EQ"
             }
         }
-	}).then(list => list ? list : []).catch(console.log)
+    }).then(list => list ? list[0] : null).catch(console.log)
+}
+
+exports.findByEmail = function(email){
+    return store.query({
+        TableName: 'user',
+        IndexName: 'email-index',
+        KeyConditions:
+        {
+            "email" : 
+            {
+                "AttributeValueList" : [{ "S" : email }],
+                "ComparisonOperator" : "EQ"
+            }
+        }
+    }).then(list => list ? list[0] : null).catch(console.log)
+}
+
+exports.findByApiKey = function(apiKey){
+    return store.query({
+        TableName: 'user',
+        IndexName: 'apiKey-index',
+        KeyConditions:
+        {
+            "apiKey" : 
+            {
+                "AttributeValueList" : [{ "S" : apiKey }],
+                "ComparisonOperator" : "EQ"
+            }
+        }
+    }).then(list => list ? list[0] : null).catch(console.log)
 }
 
 exports.listAll = function(config){
 	if(!config){
 		config = {};
 	}
-	config.TableName = 'data';
+	config.TableName = 'user';
 	return store.scan(config)
 }
 
-exports.delete = function(model, id){
+exports.delete = function(id){
 	return new Promise(function(resolve, reject){
 		store.client.deleteItem({
-			TableName: 'data',
-			Key: marshalItem({model: model, id: id})
+			TableName: 'user',
+			Key: marshalItem({id: id})
 		}, function(err, data){
 			if(err) {
 				console.log(err)
@@ -94,7 +125,7 @@ exports.delete = function(model, id){
 exports.setAttribute = function(id, attributeName, value){
 	return new Promise(function(resolve, reject){
 		store.client.updateItem({
-		    "TableName": "data",
+		    "TableName": "user",
 		    "Key": {
 		        "id": { "S": id }
 		    },
