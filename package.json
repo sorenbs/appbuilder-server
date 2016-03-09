@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "start": "babel-node server.js",
+    "start": "babel-node app-server.js",
     "dev": "nodemon server.js --exec babel-node",
     "lint": "eslint src",
     "check": "flow check",
